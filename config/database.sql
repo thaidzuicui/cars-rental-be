@@ -19,11 +19,9 @@
 -- Table structure for table `cars`
 --
 
-/*DROP TABLE IF EXISTS `cars`;*/
+DROP TABLE IF EXISTS `cars`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
-CREATE Database tables;
-use tables;
 
 CREATE TABLE `cars` (
   `car_id` int(4) NOT NULL AUTO_INCREMENT,
@@ -40,8 +38,6 @@ CREATE TABLE `cars` (
   `description` varchar(255) NOT NULL,
   PRIMARY KEY (`car_id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=1038 DEFAULT CHARSET=utf8;
-
-
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -89,13 +85,12 @@ DROP TABLE IF EXISTS `users`;
 
 CREATE TABLE `users` (
 `user_id` int(11) NOT NULL AUTO_INCREMENT,
-`google_id` int(20) default null,
-`username` varchar(50) NOT NULL,
-`last_name` varchar(50) NOT NULL,
-`first_name` varchar(50) NOT NULL,
+`full_name` varchar(255) DEFAULT NULL,
+`username` varchar(255) NOT NULL,
+`bio` varchar(255) DEFAULT NULL,
+`password` varchar(255) NOT NULL,
 `profile_image` varchar(255) NOT NULL,
 `email` varchar(50) not null,
-`img_url` VARCHAR(255) default NULL,
 `create_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
 PRIMARY KEY (`user_id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
@@ -172,3 +167,37 @@ LOCK TABLES `rental` WRITE;
 /*!40000 ALTER TABLE `rental` DISABLE KEYS */;
 /*!40000 ALTER TABLE `rental` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `likes`
+--
+
+DROP TABLE IF EXISTS `likes`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+
+CREATE TABLE `likes` (
+`like_id` int(11) NOT NULL AUTO_INCREMENT,
+`user_id` int(11) NOT NULL,
+`car_id` int(11) NOT NULL,
+PRIMARY KEY (`like_id`),
+KEY `car_id` (`car_id`),
+KEY `user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 AUTO_INCREMENT=1 ;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+--
+-- Dumping data for table `likes`
+--
+
+LOCK TABLES `likes` WRITE;
+/*!40000 ALTER TABLE `likes` DISABLE KEYS */;
+/*!40000 ALTER TABLE `likes` ENABLE KEYS */;
+UNLOCK TABLES;
+
+-- ALTER TABLE `rental` DROP FOREIGN KEY `fk_rental_user`;
+-- ALTER TABLE `likes` DROP FOREIGN KEY `fk_likes_user`;
+-- ALTER TABLE `car_review` DROP FOREIGN KEY `fk_car_review_user`;
+
+ALTER TABLE `users`
+MODIFY `email` varchar(50) default NULL;

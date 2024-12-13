@@ -14,7 +14,7 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    const checkQuery = `SELECT username FROM users WHERE email = ?`;
+    const checkQuery = `SELECT username FROM users WHERE username = ?`;
     db.query(checkQuery, [username], async (err, results) => {
       if (err) {
         return res.status(500).json({ message: "Database error", error: err });

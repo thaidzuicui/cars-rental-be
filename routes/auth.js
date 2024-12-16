@@ -18,9 +18,8 @@ router.post("/register", async (req, res) => {
   }
 
   try {
-    // Kiểm tra xem email hoặc username đã tồn tại chưa
-    const checkQuery = `SELECT username, email FROM users WHERE username = ? OR email = ?`;
-    db.query(checkQuery, [username, email], async (err, results) => {
+    const checkQuery = `SELECT username FROM users WHERE email = ?`;
+    db.query(checkQuery, [username], async (err, results) => {
       if (err) {
         return res.status(500).json({ message: "Database error", error: err });
       }

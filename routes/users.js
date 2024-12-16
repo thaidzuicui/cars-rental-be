@@ -10,7 +10,7 @@ const upload = multer({ storage });
 router.get("/currentUser", verifyToken, (req, res) => {
   const userId = req.userId; // Lấy userId từ token
 
-  const query = "SELECT user_id, full_name, username, email, profile_image FROM users WHERE user_id = ?";
+  const query = "SELECT user_id, first_name, last_name, username, email, profile_image FROM users WHERE user_id = ?";
   db.query(query, [userId], (err, results) => {
     if (err) {
       return res.status(500).json({ message: "Database error", error: err });
@@ -21,7 +21,9 @@ router.get("/currentUser", verifyToken, (req, res) => {
     }
 
     const user = results[0];
-    return res.status(200).json({ message: "User retrieved successfully", user });
+    return res
+      .status(200)
+      .json({ message: "User retrieved successfully", user });
   });
 });
 
@@ -77,6 +79,3 @@ router.put("/updateProfile", verifyToken, upload.single("image"), (req, res) => 
 });
 
 module.exports = router;
-
-
-

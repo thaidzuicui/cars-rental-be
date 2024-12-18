@@ -4,57 +4,71 @@ const db = require("../config/db");
 const verifyToken = require("../middleware/verifyToken.js"); // Middleware kiểm tra token
 
 // API Like xe
-router.post("/like", verifyToken, (req, res) => {
-  const { car_id } = req.body; // Lấy ID xe từ request
-  const user_id = req.userId; // Lấy user_id từ token (middleware verifyToken)
+router.post("/like/:id", verifyToken, (req, res) => {
+  const carId = req.params.id; // Lấy car_id từ URL
+  const userId = req.userId; // Lấy user_id từ token
 
-  if (!car_id) {
-    return res.status(400).json({ message: "Car ID is required" });
-  }
-
-  // Kiểm tra xem user đã like xe chưa
-  const checkQuery = `SELECT * FROM likes WHERE user_id = ? AND car_id = ?`;
-  db.query(checkQuery, [user_id, car_id], (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error", error: err });
-
-    if (results.length > 0) {
-      return res.status(409).json({ message: "You have already liked this car" });
+  // Kiểm tra xem user đã like xe này chưa
+  const checkQuery = "SELECT * FROM likes WHERE car_id = ? AND user_id = ?";
+  db.query(checkQuery, [carId, userId], (err, results) => {
+    if (err) {
+      return res.status(500).json({ message: "Database error", error: err });
     }
 
-    // Thêm like vào bảng likes
-    const insertQuery = `INSERT INTO likes (user_id, car_id) VALUES (?, ?)`;
-    db.query(insertQuery, [user_id, car_id], (err, result) => {
-      if (err) return res.status(500).json({ message: "Database error", error: err });
+    if (results.length > 0) {
+      // Nếu đã like rồi thì trả về thông báo
+      return res.status(400).json({ message: "You have already liked this car" });
+    }
 
-      return res.status(201).json({ message: "Car liked successfully", likeId: result.insertId });
+    // Thêm like mới
+    const insertQuery = "INSERT INTO likes (car_id, user_id) VALUES (?, ?)";
+    db.query(insertQuery, [carId, userId], (err, result) => {
+      if (err) {
+        return res.status(500).json({ message: "Database error", error: err });
+      }
+      res.status(201).json({
+        message: "Car liked successfully",
+        likeId: result.insertId,
+      });
     });
   });
 });
 
 // API Unlike xe
-router.delete("/like", verifyToken, (req, res) => {
-  const { car_id } = req.body;
-  const user_id = req.userId;
+router.delete("/like/:id", verifyToken, (req, res) => {
+  const carId = req.params.id; // Lấy car_id từ URL
+  const userId = req.userId; // Lấy user_id từ token sau middleware
 
-  if (!car_id) {
+  // Kiểm tra input
+  if (!carId) {
     return res.status(400).json({ message: "Car ID is required" });
   }
 
-  // Xóa like khỏi bảng likes
-  const deleteQuery = `DELETE FROM likes WHERE user_id = ? AND car_id = ?`;
-  db.query(deleteQuery, [user_id, car_id], (err, result) => {
-    if (err) return res.status(500).json({ message: "Database error", error: err });
+  const query = `DELETE FROM likes WHERE car_id = ? AND user_id = ?`;
 
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: "Like not found" });
+  db.query(query, [carId, userId], (err, result) => {
+    if (err) {
+      console.error("Database error:", err);
+      return res.status(500).json({ message: "Database error", error: err });
     }
 
-    return res.status(200).json({ message: "Car unliked successfully" });
+    // Kiểm tra xem like đã tồn tại không
+    if (result.affectedRows === 0) {
+      return res.status(404).json({
+        message: "Like not found or already deleted",
+      });
+    }
+
+    res.status(200).json({
+      message: "Like removed successfully",
+      car_id: carId,
+      user_id: userId,
+    });
   });
 });
 
 // API Lấy danh sách xe đã được user like
-router.get("/likes", verifyToken, (req, res) => {
+router.get("/listLike", verifyToken, (req, res) => {
   const user_id = req.userId;
 
   const query = `

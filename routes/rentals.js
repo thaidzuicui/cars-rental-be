@@ -1,61 +1,51 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const verifyToken = require('../middleware/verifyToken');
 
 // API thuê xe
-router.post("/rentCar", (req, res) => {
-    const { user_id, car_id, rental_date, return_date, payment_amount } = req.body;
-  
-    // Kiểm tra các trường dữ liệu đầu vào
-    if (!user_id || !car_id || !rental_date || !return_date || !payment_amount) {
-      return res.status(400).json({ message: "Missing required fields" });
+router.post("/rentCar/:car_id", verifyToken, (req, res) => {
+  const { car_id } = req.params; // Lấy car_id từ URL
+  const user_id = req.userId; // Lấy user_id từ token
+  const { rental_date, return_date, payment_amount } = req.body;
+
+  // Kiểm tra các trường dữ liệu đầu vào
+  if (!car_id || !rental_date || !return_date || !payment_amount) {
+    return res.status(400).json({ message: "Missing required fields" });
+  }
+
+  // Kiểm tra xem xe có tồn tại trong bảng `cars` không
+  const checkCarQuery = "SELECT * FROM cars WHERE car_id = ?";
+  db.query(checkCarQuery, [car_id], (err, carResults) => {
+    if (err) {
+      return res.status(500).json({ message: "Database error", error: err });
     }
-  
-    // Kiểm tra xem xe có tồn tại trong bảng `cars` không
-    const checkCarQuery = "SELECT * FROM cars WHERE car_id = ?";
-    db.query(checkCarQuery, [car_id], (err, carResults) => {
-      if (err) {
-        return res.status(500).json({ message: "Database error", error: err });
-      }
-  
-      if (carResults.length === 0) {
-        return res.status(404).json({ message: "Car not found" });
-      }
-  
-      // Kiểm tra xem user có tồn tại trong bảng `users` không
-      const checkUserQuery = "SELECT * FROM users WHERE user_id = ?";
-      db.query(checkUserQuery, [user_id], (err, userResults) => {
+
+    if (carResults.length === 0) {
+      return res.status(404).json({ message: "Car not found" });
+    }
+
+    // Thêm giao dịch thuê xe vào bảng `rental`
+    const rentCarQuery = `
+      INSERT INTO rental (
+        rental_date, return_date, car_id, user_id, payment_amount, rental_status
+      ) VALUES (?, ?, ?, ?, ?, ?)`;
+    db.query(
+      rentCarQuery,
+      [rental_date, return_date, car_id, user_id, payment_amount, 1], // 1 = đang thuê
+      (err, result) => {
         if (err) {
           return res.status(500).json({ message: "Database error", error: err });
         }
-  
-        if (userResults.length === 0) {
-          return res.status(404).json({ message: "User not found" });
-        }
-  
-        // Thêm giao dịch thuê xe vào bảng `rental`
-        const rentCarQuery = `
-          INSERT INTO rental (
-            rental_date, return_date, car_id, user_id, payment_amount, rental_status
-          ) VALUES (?, ?, ?, ?, ?, ?)`;
-        db.query(
-          rentCarQuery,
-          [rental_date, return_date, car_id, user_id, payment_amount, 1], // 1 = đang thuê
-          (err, result) => {
-            if (err) {
-              return res.status(500).json({ message: "Database error", error: err });
-            }
-  
-            return res.status(201).json({
-              message: "Car rented successfully",
-              rentalId: result.insertId,
-            });
-          }
-        );
-      });
-    });
+
+        return res.status(201).json({
+          message: "Car rented successfully",
+          rentalId: result.insertId,
+        });
+      }
+    );
   });
-  
+});
 
 // Lấy danh sách thuê xe
 router.get('/ListRental', (req, res) => {

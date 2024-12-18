@@ -10,7 +10,7 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "car_rental_images", // Thư mục lưu trên Cloudinary
+    folder: process.env.folder, // Thư mục lưu trên Cloudinary
     allowed_formats: ["jpeg", "png", "jpg"],
   },
 });

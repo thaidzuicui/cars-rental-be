@@ -4,65 +4,63 @@ const db = require("../config/db");
 const verifyToken = require("../middleware/verifyToken.js"); // Middleware kiểm tra token
 
 // API Like xe
-router.post("/like/:id", verifyToken, (req, res) => {
-  const carId = req.params.id; // Lấy car_id từ URL
-  const userId = req.userId; // Lấy user_id từ token
+router.post("/like/:car_id", verifyToken, (req, res) => {
+  const car_id = req.params.car_id; // Lấy car_id từ URL params
+  const user_id = req.userId; // Lấy user_id từ token (middleware verifyToken)
 
-  // Kiểm tra xem user đã like xe này chưa
-  const checkQuery = "SELECT * FROM likes WHERE car_id = ? AND user_id = ?";
-  db.query(checkQuery, [carId, userId], (err, results) => {
+  // Kiểm tra xem car_id có phải là số hợp lệ không
+  if (isNaN(car_id)) {
+    return res.status(400).json({ message: "Invalid car ID" });
+  }
+
+  // Kiểm tra xem car_id có tồn tại trong bảng cars hay không
+  const checkCarExistQuery = `SELECT 1 FROM cars WHERE car_id = ? LIMIT 1`;
+  db.query(checkCarExistQuery, [car_id], (err, results) => {
     if (err) {
       return res.status(500).json({ message: "Database error", error: err });
     }
 
-    if (results.length > 0) {
-      // Nếu đã like rồi thì trả về thông báo
-      return res.status(400).json({ message: "You have already liked this car" });
+    if (results.length === 0) {
+      return res.status(404).json({ message: "Car not found" });
     }
 
-    // Thêm like mới
-    const insertQuery = "INSERT INTO likes (car_id, user_id) VALUES (?, ?)";
-    db.query(insertQuery, [carId, userId], (err, result) => {
+    // Kiểm tra xem user đã like xe chưa
+    const checkLikeQuery = `SELECT * FROM likes WHERE user_id = ? AND car_id = ?`;
+    db.query(checkLikeQuery, [user_id, car_id], (err, results) => {
       if (err) {
         return res.status(500).json({ message: "Database error", error: err });
       }
-      res.status(201).json({
-        message: "Car liked successfully",
-        likeId: result.insertId,
-      });
-    });
-  });
-});
 
-// API Unlike xe
-router.delete("/like/:id", verifyToken, (req, res) => {
-  const carId = req.params.id; // Lấy car_id từ URL
-  const userId = req.userId; // Lấy user_id từ token sau middleware
+      if (results.length > 0) {
+        // Nếu đã like rồi, thực hiện unlike (xóa like)
+        const deleteLikeQuery = `DELETE FROM likes WHERE user_id = ? AND car_id = ?`;
+        db.query(deleteLikeQuery, [user_id, car_id], (err, result) => {
+          if (err) {
+            return res
+              .status(500)
+              .json({ message: "Database error", error: err });
+          }
 
-  // Kiểm tra input
-  if (!carId) {
-    return res.status(400).json({ message: "Car ID is required" });
-  }
+          return res.status(200).json({
+            message: "Car unliked successfully",
+          });
+        });
+      } else {
+        // Nếu chưa like, thực hiện like (thêm like vào bảng)
+        const insertLikeQuery = `INSERT INTO likes (user_id, car_id) VALUES (?, ?)`;
+        db.query(insertLikeQuery, [user_id, car_id], (err, result) => {
+          if (err) {
+            return res
+              .status(500)
+              .json({ message: "Database error", error: err });
+          }
 
-  const query = `DELETE FROM likes WHERE car_id = ? AND user_id = ?`;
-
-  db.query(query, [carId, userId], (err, result) => {
-    if (err) {
-      console.error("Database error:", err);
-      return res.status(500).json({ message: "Database error", error: err });
-    }
-
-    // Kiểm tra xem like đã tồn tại không
-    if (result.affectedRows === 0) {
-      return res.status(404).json({
-        message: "Like not found or already deleted",
-      });
-    }
-
-    res.status(200).json({
-      message: "Like removed successfully",
-      car_id: carId,
-      user_id: userId,
+          return res.status(201).json({
+            message: "Car liked successfully",
+            likeId: result.insertId,
+          });
+        });
+      }
     });
   });
 });
@@ -78,9 +76,12 @@ router.get("/listLike", verifyToken, (req, res) => {
     WHERE l.user_id = ?
   `;
   db.query(query, [user_id], (err, results) => {
-    if (err) return res.status(500).json({ message: "Database error", error: err });
+    if (err)
+      return res.status(500).json({ message: "Database error", error: err });
 
-    return res.status(200).json({ message: "Liked cars retrieved successfully", cars: results });
+    return res
+      .status(200)
+      .json({ message: "Liked cars retrieved successfully", cars: results });
   });
 });
 

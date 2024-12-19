@@ -1,6 +1,6 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const db = require('../config/db');
+const db = require("../config/db");
 const multer = require("multer");
 const { storage } = require("../middleware/cloudinary");
 const upload = multer({ storage });
@@ -30,7 +30,9 @@ router.get("/currentCar/:id", (req, res) => {
     const imgQuery = "SELECT img_url FROM car_imgs WHERE car_id = ?";
     db.query(imgQuery, [carId], (err, imgResults) => {
       if (err) {
-        return res.status(500).json({ message: "Error fetching images", error: err });
+        return res
+          .status(500)
+          .json({ message: "Error fetching images", error: err });
       }
 
       const images = imgResults.map((img) => img.img_url);
@@ -47,9 +49,7 @@ router.get("/currentCar/:id", (req, res) => {
   });
 });
 
-
-
-// API cập nhật thông tin xe 
+// API cập nhật thông tin xe
 router.put("/updateCar/:car_id", upload.array("images"), async (req, res) => {
   const { car_id } = req.params; // Lấy car_id từ param
   const {
@@ -100,7 +100,9 @@ router.put("/updateCar/:car_id", upload.array("images"), async (req, res) => {
 
     db.query(query, values, (err, result) => {
       if (err) {
-        return res.status(500).json({ message: "Database error", error: err.message });
+        return res
+          .status(500)
+          .json({ message: "Database error", error: err.message });
       }
 
       if (result.affectedRows === 0) {
@@ -120,10 +122,13 @@ router.put("/updateCar/:car_id", upload.array("images"), async (req, res) => {
           if (imgErr) {
             return res
               .status(500)
-              .json({ message: "Error updating car images", error: imgErr.message });
+              .json({
+                message: "Error updating car images",
+                error: imgErr.message,
+              });
           }
         });
-      } 
+      }
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -132,30 +137,30 @@ router.put("/updateCar/:car_id", upload.array("images"), async (req, res) => {
   res.json({ message: "Car updated successfully!" });
 });
 
-
 // Xóa xe
-router.delete('/deleteCar/:car_id', (req, res) => {
+router.delete("/deleteCar/:car_id", (req, res) => {
   const { car_id } = req.params; // Lấy car_id từ params
 
   // Kiểm tra xem car_id có được gửi hay không
   if (!car_id) {
-    return res.status(400).json({ message: 'Car ID is required' });
+    return res.status(400).json({ message: "Car ID is required" });
   }
 
-  const query = 'DELETE FROM cars WHERE car_id = ?';
+  const query = "DELETE FROM cars WHERE car_id = ?";
   db.query(query, [car_id], (err, result) => {
     if (err) {
-      return res.status(500).json({ message: 'Database error', error: err.message });
+      return res
+        .status(500)
+        .json({ message: "Database error", error: err.message });
     }
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Car not found' });
+      return res.status(404).json({ message: "Car not found" });
     }
 
-    res.json({ message: 'Car deleted successfully!' });
+    res.json({ message: "Car deleted successfully!" });
   });
 });
-
 
 // API thêm xe cho thuê
 router.post("/addCar", upload.array("images"), (req, res) => {
@@ -184,7 +189,9 @@ router.post("/addCar", upload.array("images"), (req, res) => {
     !description ||
     images.length === 0
   ) {
-    return res.status(400).json({ message: "Missing required fields or images" });
+    return res
+      .status(400)
+      .json({ message: "Missing required fields or images" });
   }
 
   // Query thêm xe vào bảng cars
@@ -236,11 +243,12 @@ router.post("/addCar", upload.array("images"), (req, res) => {
           });
         })
         .catch((imgErr) => {
-          res.status(500).json({ message: "Failed to save images", error: imgErr });
+          res
+            .status(500)
+            .json({ message: "Failed to save images", error: imgErr });
         });
     }
   );
 });
-
 
 module.exports = router;

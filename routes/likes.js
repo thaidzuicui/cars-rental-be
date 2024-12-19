@@ -65,24 +65,4 @@ router.post("/like/:car_id", verifyToken, (req, res) => {
   });
 });
 
-// API Lấy danh sách xe đã được user like
-router.get("/listLike", verifyToken, (req, res) => {
-  const user_id = req.userId;
-
-  const query = `
-    SELECT c.car_id, c.brand, c.model, c.body_type, c.maximum_gasoline, c.transmission_type, c.location, c.price1day, c.description 
-    FROM cars c
-    INNER JOIN likes l ON c.car_id = l.car_id
-    WHERE l.user_id = ?
-  `;
-  db.query(query, [user_id], (err, results) => {
-    if (err)
-      return res.status(500).json({ message: "Database error", error: err });
-
-    return res
-      .status(200)
-      .json({ message: "Liked cars retrieved successfully", cars: results });
-  });
-});
-
 module.exports = router;

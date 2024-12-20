@@ -4,21 +4,19 @@ const db = require("../config/db");
 const bcrypt = require("bcrypt");
 const generateToken = require("../utils/generateToken");
 
-
-
 // API Đăng ký tài khoản
 router.post("/register", async (req, res) => {
-  const { username, full_name, password, email } = req.body;
+  const { username, full_name, password } = req.body;
   const defaultImage =
     "https://i.pinimg.com/236x/b8/2a/6d/b82a6d7d7db5a9ec0f096db7029330cb.jpg";
 
   // Kiểm tra các trường bắt buộc
-  if (!username || !password || !full_name || !email) {
+  if (!username || !password || !full_name) {
     return res.status(400).json({ message: "Missing required fields" });
   }
 
   try {
-    const checkQuery = `SELECT username FROM users WHERE email = ?`;
+    const checkQuery = `SELECT username FROM users WHERE username = ?`;
     db.query(checkQuery, [username], async (err, results) => {
       if (err) {
         return res.status(500).json({ message: "Database error", error: err });
@@ -38,11 +36,11 @@ router.post("/register", async (req, res) => {
 
       // Thêm người dùng mới vào database
       const query = `
-        INSERT INTO users (full_name, password, username, email, profile_image) 
-        VALUES (?, ?, ?, ?, ?)`;
+        INSERT INTO users (full_name, password, username, profile_image) 
+        VALUES (?, ?, ?, ?)`;
       db.query(
         query,
-        [full_name, hashedPassword, username, email, defaultImage],
+        [full_name, hashedPassword, username, defaultImage],
         (err, result) => {
           if (err) {
             return res
@@ -62,7 +60,6 @@ router.post("/register", async (req, res) => {
     return res.status(500).json({ message: "Server error", error: error });
   }
 });
-
 
 router.post("/login", async (req, res) => {
   const { username, password } = req.body;

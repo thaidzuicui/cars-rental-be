@@ -67,7 +67,7 @@ router.get("/likedCars", verifyToken, (req, res) => {
 
   // Truy vấn lấy danh sách xe mà người dùng đã like
   const query = `
-    SELECT c.car_id, c.brand, c.model, c.body_type, c.location, c.price1day, c.description,
+    SELECT c.car_id, c.brand, c.model, c.body_type, c.location, c.price1day, c.description, c.capacity
     FROM cars c
     JOIN likes l ON c.car_id = l.car_id
     WHERE l.user_id = ?
@@ -76,7 +76,7 @@ router.get("/likedCars", verifyToken, (req, res) => {
   db.query(query, [userId], (err, cars) => {
     if (err) return res.status(500).json({ error: "Database query error" });
 
-    // Sử dụng Promise.all để lấy hình ảnh, bookings và liked cho từng xe
+    // Sử dụng Promise.all để lấy hình ảnh, bookings và likes cho từng xe
     const promises = cars.map((car) => {
       return new Promise((resolve, reject) => {
         // Truy vấn lấy hình ảnh của xe
@@ -102,10 +102,16 @@ router.get("/likedCars", verifyToken, (req, res) => {
               return_date: booking.return_date,
             }));
 
-            // Trả về xe với tất cả thông tin
-            car.liked = true; // Xe này đã được like bởi người dùng
+            // Truy vấn lấy danh sách user_id đã like chiếc xe này
+            const likesQuery = "SELECT user_id FROM likes WHERE car_id = ?";
+            db.query(likesQuery, [car.car_id], (err, likesResult) => {
+              if (err) return reject("Error fetching likes: " + err);
 
-            resolve(car); // Trả về xe với tất cả thông tin
+              // Thêm danh sách user_id vào thuộc tính likes
+              car.likes = likesResult.map((like) => like.user_id);
+
+              resolve(car); // Trả về xe với tất cả thông tin
+            });
           });
         });
       });
@@ -117,7 +123,66 @@ router.get("/likedCars", verifyToken, (req, res) => {
       .catch((error) =>
         res
           .status(500)
-          .json({ error: "Failed to fetch car images or bookings" })
+          .json({ error: "Failed to fetch car images, bookings, or likes" })
+      );
+  });
+});
+
+router.get("/allCars", (req, res) => {
+  const query = `
+    SELECT c.car_id, c.brand, c.model, c.body_type, c.location, c.price1day, c.description, 
+           c.maximum_gasoline, c.transmission_type, c.capacity, c.rate
+    FROM cars c
+  `;
+
+  db.query(query, (err, cars) => {
+    if (err) return res.status(500).json({ error: "Database query error" });
+
+    // Sử dụng Promise.all để lấy hình ảnh, bookings và likes cho từng xe
+    const promises = cars.map((car) => {
+      return new Promise((resolve, reject) => {
+        // Truy vấn lấy hình ảnh của xe
+        const imgQuery = "SELECT img_url FROM car_imgs WHERE car_id = ?";
+        db.query(imgQuery, [car.car_id], (err, imgUrls) => {
+          if (err) return reject("Error fetching images: " + err);
+
+          // Thêm hình ảnh vào thuộc tính car_imgs
+          car.car_imgs = imgUrls.map((img) => img.img_url);
+
+          // Truy vấn lấy bookings (rental_date và return_date) với điều kiện return_date > ngày hôm nay
+          const bookingsQuery = `
+            SELECT rental_date, return_date 
+            FROM rental 
+            WHERE car_id = ? AND return_date > CURRENT_TIMESTAMP
+          `;
+          db.query(bookingsQuery, [car.car_id], (err, bookings) => {
+            if (err) return reject("Error fetching bookings: " + err);
+
+            // Thêm bookings vào thuộc tính bookings của xe
+            car.bookings = bookings.map((booking) => ({
+              rental_date: booking.rental_date,
+              return_date: booking.return_date,
+            }));
+
+            // Truy vấn lấy danh sách user_id đã like chiếc xe này
+            const likesQuery = "SELECT user_id FROM likes WHERE car_id = ?";
+            db.query(likesQuery, [car.car_id], (err, likesResult) => {
+              if (err) return reject("Error fetching likes: " + err);
+
+              // Thêm danh sách user_id vào thuộc tính likes
+              car.likes = likesResult.map((like) => like.user_id);
+
+              resolve(car); // Trả về xe với tất cả thông tin
+            });
+          });
+        });
+      });
+    });
+
+    Promise.all(promises)
+      .then((carsWithDetails) => res.json(carsWithDetails))
+      .catch((error) =>
+        res.status(500).json({ error: "Failed to fetch car details" })
       );
   });
 });

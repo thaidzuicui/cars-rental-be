@@ -1,9 +1,191 @@
-const express = require('express');
+const express = require("express");
 const router = express.Router();
-const db = require('../config/db');
+const db = require("../config/db");
 const multer = require("multer");
 const { storage } = require("../middleware/cloudinary");
 const upload = multer({ storage });
+const verifyToken = require("../middleware/verifyToken");
+
+router.get("/popularCars", (req, res) => {
+  const query = `SELECT c.car_id, c.brand, c.model, c.body_type, c.location, c.price1day, c.description, c.maximum_gasoline, c.transmission_type, c.capacity,
+            COUNT(r.rental_id) AS rental_count
+     FROM cars c
+     LEFT JOIN rental r ON c.car_id = r.car_id
+     GROUP BY c.car_id
+     ORDER BY rental_count DESC;`;
+
+  db.query(query, (err, cars) => {
+    if (err) return res.status(500).json({ error: "Database query error" });
+
+    // Sử dụng Promise.all để lấy hình ảnh, bookings và likes cho từng xe
+    const promises = cars.map((car) => {
+      return new Promise((resolve, reject) => {
+        // Truy vấn lấy hình ảnh của xe
+        const imgQuery = "SELECT img_url FROM car_imgs WHERE car_id = ?";
+        db.query(imgQuery, [car.car_id], (err, imgUrls) => {
+          if (err) return reject("Error fetching images: " + err);
+
+          // Thêm hình ảnh vào thuộc tính car_imgs
+          car.car_imgs = imgUrls.map((img) => img.img_url);
+
+          // Truy vấn lấy bookings (rental_date và return_date) với điều kiện return_date > ngày hôm nay
+          const bookingsQuery = `SELECT rental_date, return_date 
+             FROM rental 
+             WHERE car_id = ? AND return_date > CURRENT_TIMESTAMP`;
+          db.query(bookingsQuery, [car.car_id], (err, bookings) => {
+            if (err) return reject("Error fetching bookings: " + err);
+
+            // Thêm bookings vào thuộc tính bookings của xe
+            car.bookings = bookings.map((booking) => ({
+              rental_date: booking.rental_date,
+              return_date: booking.return_date,
+            }));
+
+            // Truy vấn lấy danh sách user_id đã like chiếc xe này
+            const likesQuery = "SELECT user_id FROM likes WHERE car_id = ?";
+            db.query(likesQuery, [car.car_id], (err, likesResult) => {
+              if (err) return reject("Error fetching likes: " + err);
+
+              // Thêm danh sách user_id vào thuộc tính likes
+              car.likes = likesResult.map((like) => like.user_id);
+
+              resolve(car); // Trả về xe với tất cả thông tin
+            });
+          });
+        });
+      });
+    });
+
+    Promise.all(promises)
+      .then((carsWithDetails) => res.json(carsWithDetails))
+      .catch((error) => res.status(500).json({ error }));
+  });
+});
+
+router.get("/likedCars", verifyToken, (req, res) => {
+  const userId = req.userId; // Lấy userId từ token (verifyToken middleware)
+
+  // Truy vấn lấy danh sách xe mà người dùng đã like
+  const query = `
+    SELECT c.car_id, c.brand, c.model, c.body_type, c.location, c.price1day, c.description, c.capacity
+    FROM cars c
+    JOIN likes l ON c.car_id = l.car_id
+    WHERE l.user_id = ?
+  `;
+
+  db.query(query, [userId], (err, cars) => {
+    if (err) return res.status(500).json({ error: "Database query error" });
+
+    // Sử dụng Promise.all để lấy hình ảnh, bookings và likes cho từng xe
+    const promises = cars.map((car) => {
+      return new Promise((resolve, reject) => {
+        // Truy vấn lấy hình ảnh của xe
+        const imgQuery = "SELECT img_url FROM car_imgs WHERE car_id = ?";
+        db.query(imgQuery, [car.car_id], (err, imgUrls) => {
+          if (err) return reject("Error fetching images: " + err);
+
+          // Thêm hình ảnh vào thuộc tính car_imgs
+          car.car_imgs = imgUrls.map((img) => img.img_url);
+
+          // Truy vấn lấy bookings (rental_date và return_date) với điều kiện return_date > ngày hôm nay
+          const bookingsQuery = `
+            SELECT rental_date, return_date 
+            FROM rental 
+            WHERE car_id = ? AND return_date > CURRENT_TIMESTAMP
+          `;
+          db.query(bookingsQuery, [car.car_id], (err, bookings) => {
+            if (err) return reject("Error fetching bookings: " + err);
+
+            // Thêm bookings vào thuộc tính bookings của xe
+            car.bookings = bookings.map((booking) => ({
+              rental_date: booking.rental_date,
+              return_date: booking.return_date,
+            }));
+
+            // Truy vấn lấy danh sách user_id đã like chiếc xe này
+            const likesQuery = "SELECT user_id FROM likes WHERE car_id = ?";
+            db.query(likesQuery, [car.car_id], (err, likesResult) => {
+              if (err) return reject("Error fetching likes: " + err);
+
+              // Thêm danh sách user_id vào thuộc tính likes
+              car.likes = likesResult.map((like) => like.user_id);
+
+              resolve(car); // Trả về xe với tất cả thông tin
+            });
+          });
+        });
+      });
+    });
+
+    // Chờ tất cả Promise hoàn tất
+    Promise.all(promises)
+      .then((result) => res.json(result)) // Trả về kết quả cho client
+      .catch((error) =>
+        res
+          .status(500)
+          .json({ error: "Failed to fetch car images, bookings, or likes" })
+      );
+  });
+});
+
+router.get("/allCars", (req, res) => {
+  const query = `
+    SELECT c.car_id, c.brand, c.model, c.body_type, c.location, c.price1day, c.description, 
+           c.maximum_gasoline, c.transmission_type, c.capacity, c.rate
+    FROM cars c
+  `;
+
+  db.query(query, (err, cars) => {
+    if (err) return res.status(500).json({ error: "Database query error" });
+
+    // Sử dụng Promise.all để lấy hình ảnh, bookings và likes cho từng xe
+    const promises = cars.map((car) => {
+      return new Promise((resolve, reject) => {
+        // Truy vấn lấy hình ảnh của xe
+        const imgQuery = "SELECT img_url FROM car_imgs WHERE car_id = ?";
+        db.query(imgQuery, [car.car_id], (err, imgUrls) => {
+          if (err) return reject("Error fetching images: " + err);
+
+          // Thêm hình ảnh vào thuộc tính car_imgs
+          car.car_imgs = imgUrls.map((img) => img.img_url);
+
+          // Truy vấn lấy bookings (rental_date và return_date) với điều kiện return_date > ngày hôm nay
+          const bookingsQuery = `
+            SELECT rental_date, return_date 
+            FROM rental 
+            WHERE car_id = ? AND return_date > CURRENT_TIMESTAMP
+          `;
+          db.query(bookingsQuery, [car.car_id], (err, bookings) => {
+            if (err) return reject("Error fetching bookings: " + err);
+
+            // Thêm bookings vào thuộc tính bookings của xe
+            car.bookings = bookings.map((booking) => ({
+              rental_date: booking.rental_date,
+              return_date: booking.return_date,
+            }));
+
+            // Truy vấn lấy danh sách user_id đã like chiếc xe này
+            const likesQuery = "SELECT user_id FROM likes WHERE car_id = ?";
+            db.query(likesQuery, [car.car_id], (err, likesResult) => {
+              if (err) return reject("Error fetching likes: " + err);
+
+              // Thêm danh sách user_id vào thuộc tính likes
+              car.likes = likesResult.map((like) => like.user_id);
+
+              resolve(car); // Trả về xe với tất cả thông tin
+            });
+          });
+        });
+      });
+    });
+
+    Promise.all(promises)
+      .then((carsWithDetails) => res.json(carsWithDetails))
+      .catch((error) =>
+        res.status(500).json({ error: "Failed to fetch car details" })
+      );
+  });
+});
 
 // Lấy danh sách xe
 router.get("/currentCar/:id", (req, res) => {
@@ -30,7 +212,9 @@ router.get("/currentCar/:id", (req, res) => {
     const imgQuery = "SELECT img_url FROM car_imgs WHERE car_id = ?";
     db.query(imgQuery, [carId], (err, imgResults) => {
       if (err) {
-        return res.status(500).json({ message: "Error fetching images", error: err });
+        return res
+          .status(500)
+          .json({ message: "Error fetching images", error: err });
       }
 
       const images = imgResults.map((img) => img.img_url);
@@ -47,9 +231,7 @@ router.get("/currentCar/:id", (req, res) => {
   });
 });
 
-
-
-// API cập nhật thông tin xe 
+// API cập nhật thông tin xe
 router.put("/updateCar/:car_id", upload.array("images"), async (req, res) => {
   const { car_id } = req.params; // Lấy car_id từ param
   const {
@@ -100,7 +282,9 @@ router.put("/updateCar/:car_id", upload.array("images"), async (req, res) => {
 
     db.query(query, values, (err, result) => {
       if (err) {
-        return res.status(500).json({ message: "Database error", error: err.message });
+        return res
+          .status(500)
+          .json({ message: "Database error", error: err.message });
       }
 
       if (result.affectedRows === 0) {
@@ -118,12 +302,13 @@ router.put("/updateCar/:car_id", upload.array("images"), async (req, res) => {
 
         db.query(insertImagesQuery, imageValues, (imgErr) => {
           if (imgErr) {
-            return res
-              .status(500)
-              .json({ message: "Error updating car images", error: imgErr.message });
+            return res.status(500).json({
+              message: "Error updating car images",
+              error: imgErr.message,
+            });
           }
         });
-      } 
+      }
     });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -132,30 +317,30 @@ router.put("/updateCar/:car_id", upload.array("images"), async (req, res) => {
   res.json({ message: "Car updated successfully!" });
 });
 
-
 // Xóa xe
-router.delete('/deleteCar/:car_id', (req, res) => {
+router.delete("/deleteCar/:car_id", (req, res) => {
   const { car_id } = req.params; // Lấy car_id từ params
 
   // Kiểm tra xem car_id có được gửi hay không
   if (!car_id) {
-    return res.status(400).json({ message: 'Car ID is required' });
+    return res.status(400).json({ message: "Car ID is required" });
   }
 
-  const query = 'DELETE FROM cars WHERE car_id = ?';
+  const query = "DELETE FROM cars WHERE car_id = ?";
   db.query(query, [car_id], (err, result) => {
     if (err) {
-      return res.status(500).json({ message: 'Database error', error: err.message });
+      return res
+        .status(500)
+        .json({ message: "Database error", error: err.message });
     }
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Car not found' });
+      return res.status(404).json({ message: "Car not found" });
     }
 
-    res.json({ message: 'Car deleted successfully!' });
+    res.json({ message: "Car deleted successfully!" });
   });
 });
-
 
 // API thêm xe cho thuê
 router.post("/addCar", upload.array("images"), (req, res) => {
@@ -184,7 +369,9 @@ router.post("/addCar", upload.array("images"), (req, res) => {
     !description ||
     images.length === 0
   ) {
-    return res.status(400).json({ message: "Missing required fields or images" });
+    return res
+      .status(400)
+      .json({ message: "Missing required fields or images" });
   }
 
   // Query thêm xe vào bảng cars
@@ -236,11 +423,12 @@ router.post("/addCar", upload.array("images"), (req, res) => {
           });
         })
         .catch((imgErr) => {
-          res.status(500).json({ message: "Failed to save images", error: imgErr });
+          res
+            .status(500)
+            .json({ message: "Failed to save images", error: imgErr });
         });
     }
   );
 });
-
 
 module.exports = router;
